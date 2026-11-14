@@ -1,0 +1,137 @@
+# Two-phase change-managed file deployment pipeline.
+#
+# Phase 1 (UploadIntent): create the upload intent for a change record.
+#          The operator then uploads the actual file via CLI.
+# Phase 2 (ApproveFile):  approve the uploaded file by its UUID.
+#
+# Both phases share a template (execute.yaml) that generates Terraform
+# configuration and runs it against the target environment via an
+# OIDC-authenticated service connection.
+
+trigger: none
+pr: none
+
+parameters:
+  - name: operation
+    displayName: Operation
+    type: string
+    default: UploadIntent
+    values:
+      - UploadIntent
+      - ApproveFile
+
+  - name: changeNumber
+    displayName: Change Record Number
+    type: string
+    default: CHG0000000
+
+  - name: oidcServiceConnectionEndpoint
+    displayName: OIDC Service Connection Endpoint
+    type: string
+    default: my-org-federated-prod
+
+  - name: azureEnvironment
+    displayName: Azure Environment
+    type: string
+    default: prod
+
+  - name: terraformDirectory
+    displayName: Directory where generated Terraform files are written
+    type: string
+    default: "$(System.DefaultWorkingDirectory)/platform/terraform/files"
+
+  - name: providerVersion
+    displayName: Provider version to pin
+    type: string
+    default: "-"
+
+  - name: uploadIntentEnvironment
+    displayName: Upload intent environment
+    type: string
+    default: Non-Production
+    values:
+      - Non-Production
+      - Production
+
+  - name: uploadIntentFileName
+    displayName: Upload intent file name
+    type: string
+    default: "Not-used-on-approval"
+
+  - name: uploadIntentComment
+    displayName: Upload intent comment
+    type: string
+    default: "Not used on approval step"
+
+  - name: approveFileEnvironment
+    displayName: Approval environment
+    type: string
+    default: Non-Production
+    values:
+      - Non-Production
+      - Production
+
+  - name: approveFileUuid
+    displayName: Approval file UUID
+    type: string
+    default: "00000000-0000-0000-0000-000000000000"
+
+  - name: approveFileComment
+    displayName: Approval comment
+    type: string
+    default: "Not used on upload step"
+
+variables:
+  ChangeNumber: ${{ parameters.changeNumber }}
+
+stages:
+
+  # Upload Intent
+  #
+  # Run this first.
+  # After it completes, the user uploads the file via CLI.
+  - ${{ if eq(parameters.operation, 'UploadIntent') }}:
+      - template: execute.yaml
+        parameters:
+          operationName: UploadIntent
+
+          azureEnvironment: ${{ parameters.azureEnvironment }}
+          oidcServiceConnectionEndpoint: ${{ parameters.oidcServiceConnectionEndpoint }}
+          changeNumber: ${{ parameters.changeNumber }}
+          terraformDirectory: ${{ parameters.terraformDirectory }}/upload-intent
+          providerVersion: ${{ parameters.providerVersion }}
+
+          createUploadIntent: true
+          uploadIntentEnvironment: ${{ parameters.uploadIntentEnvironment }}
+          uploadIntentFileName: ${{ parameters.uploadIntentFileName }}
+          uploadIntentComment: ${{ parameters.uploadIntentComment }}
+
+          approveFile: false
+          approveFileEnvironment: ${{ parameters.approveFileEnvironment }}
+          approveFileUuid: "00000000-0000-0000-0000-000000000000"
+          approveFileComment: "Not used on upload step"
+
+  # Approve File
+  #
+  # Run this after the user has uploaded the file via CLI.
+  # The UUID supplied here must be the uploaded file UUID.
+  - ${{ if eq(parameters.operation, 'ApproveFile') }}:
+      - template: execute.yaml
+        parameters:
+          operationName: ApproveFile
+
+          azureEnvironment: ${{ parameters.azureEnvironment }}
+          oidcServiceConnectionEndpoint: ${{ parameters.oidcServiceConnectionEndpoint }}
+          changeNumber: ${{ parameters.changeNumber }}
+          terraformDirectory: ${{ parameters.terraformDirectory }}/approve-file
+          providerVersion: ${{ parameters.providerVersion }}
+
+          createUploadIntent: false
+          uploadIntentEnvironment: ${{ parameters.uploadIntentEnvironment }}
+          uploadIntentFileName: "Not-used-on-approval"
+          uploadIntentComment: "Not used on approval step"
+
+          approveFile: true
+          approveFileEnvironment: ${{ parameters.approveFileEnvironment }}
+          approveFileUuid: ${{ parameters.approveFileUuid }}
+          approveFileComment: ${{ parameters.approveFileComment }}
