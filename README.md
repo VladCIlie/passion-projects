@@ -11,3 +11,10 @@ its first batch.
 | `change-approval-pipeline/` | YAML (Azure Pipelines) | Two-phase change-management pipeline (upload intent → approve) |
 | `sccm-repair-watcher/` | PowerShell | Watches CCMEval.log and triggers automatic SCCM client repair |
 | `ticket-classification-helper/` | Python | Global-hotkey helper that pastes standardized ticket classifications |
+
+## And bonus
+A python QR code generator
+
+| Tool | Language | Purpose |
+|------|----------|---------|
+| `QR Code generator.py` | Python | Python QR code generator |
